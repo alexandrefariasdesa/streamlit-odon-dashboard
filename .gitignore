@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.env
+*.env
+service_account.json
+.streamlit/secrets.toml
+*.log
+streamlit_*.log
+.DS_Store
+Thumbs.db
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
