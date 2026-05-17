@@ -709,122 +709,123 @@ with tabs[9]:
 
         st.markdown("---")
 
-        # ── Seção 1: Resultado + Motivos ──────────────────────────────────────
-        col_pie, col_mp, col_mg = st.columns(3)
-
-        with col_pie:
-            st.markdown("#### Resultado geral")
-            df_cc = cc.reset_index()
-            df_cc.columns = ["Resultado", "Qtd"]
+        # ── Seção 1: Resultado geral ──────────────────────────────────────────
+        try:
+            cc_vals = df_crm["_CLASSIF"].value_counts()
+            df_cc = pd.DataFrame({"Resultado": cc_vals.index.tolist(), "Qtd": cc_vals.values.tolist()})
             fig_pie = px.pie(
                 df_cc, names="Resultado", values="Qtd",
                 color="Resultado",
                 color_discrete_map={"✅ Ganho": "#4caf50", "❌ Perda": "#f44336", "🔄 Em andamento": "#ff9800"},
             )
             fig_pie.update_layout(height=300, margin=dict(l=0, r=0, t=10, b=10))
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.markdown("#### Resultado geral")
+            st.plotly_chart(fig_pie, use_container_width=True, key="crm_pie")
+        except Exception as _e:
+            st.error(f"Erro no gráfico de resultado: {_e}")
 
-        def _bar_motivos(df_sub, cor, key_suffix):
-            if motivo_col is None:
-                st.caption("Coluna de motivos não detectada.")
-                return
-            s = df_sub[motivo_col].astype(str).str.strip().replace({'': pd.NA, 'nan': pd.NA}).dropna().value_counts().head(10)
-            if s.empty:
-                st.info("Sem motivos registrados.")
-                return
-            df_m = s.reset_index(); df_m.columns = ['Motivo', 'Qtd']
-            fig = px.bar(df_m, x='Qtd', y='Motivo', orientation='h', color_discrete_sequence=[cor])
-            fig.update_layout(height=max(200, len(df_m) * 34), plot_bgcolor='white',
-                              margin=dict(l=0, r=20, t=10, b=10))
-            st.plotly_chart(fig, use_container_width=True, key=f"mot_{key_suffix}")
-
-        with col_mp:
-            st.markdown("#### Motivos de Perda")
-            df_perdas = df_crm[df_crm["_CLASSIF"] == "❌ Perda"]
-            _bar_motivos(df_perdas, "#f44336", "perda") if perdas > 0 else st.info("Nenhuma perda.")
-
-        with col_mg:
-            st.markdown("#### Motivos de Ganho")
-            df_ganhos = df_crm[df_crm["_CLASSIF"] == "✅ Ganho"]
-            _bar_motivos(df_ganhos, "#4caf50", "ganho") if ganhos > 0 else st.info("Nenhum ganho.")
+        # ── Seção 2: Motivos ──────────────────────────────────────────────────
+        if motivo_col:
+            try:
+                mc1, mc2 = st.columns(2)
+                with mc1:
+                    st.markdown("#### Motivos de Perda")
+                    if perdas > 0:
+                        df_p = df_crm[df_crm["_CLASSIF"] == "❌ Perda"]
+                        s_p = df_p[motivo_col].astype(str).str.strip().replace({'': pd.NA, 'nan': pd.NA}).dropna().value_counts().head(10)
+                        if not s_p.empty:
+                            df_mp = pd.DataFrame({"Motivo": s_p.index.tolist(), "Qtd": s_p.values.tolist()})
+                            fig_mp = px.bar(df_mp, x='Qtd', y='Motivo', orientation='h', color_discrete_sequence=["#f44336"])
+                            fig_mp.update_layout(height=max(200, len(df_mp)*34), plot_bgcolor='white', margin=dict(l=0,r=20,t=10,b=10))
+                            st.plotly_chart(fig_mp, use_container_width=True, key="crm_mot_perda")
+                        else:
+                            st.info("Sem motivos registrados.")
+                    else:
+                        st.info("Nenhuma perda registrada.")
+                with mc2:
+                    st.markdown("#### Motivos de Ganho")
+                    if ganhos > 0:
+                        df_g = df_crm[df_crm["_CLASSIF"] == "✅ Ganho"]
+                        s_g = df_g[motivo_col].astype(str).str.strip().replace({'': pd.NA, 'nan': pd.NA}).dropna().value_counts().head(10)
+                        if not s_g.empty:
+                            df_mg = pd.DataFrame({"Motivo": s_g.index.tolist(), "Qtd": s_g.values.tolist()})
+                            fig_mg = px.bar(df_mg, x='Qtd', y='Motivo', orientation='h', color_discrete_sequence=["#4caf50"])
+                            fig_mg.update_layout(height=max(200, len(df_mg)*34), plot_bgcolor='white', margin=dict(l=0,r=20,t=10,b=10))
+                            st.plotly_chart(fig_mg, use_container_width=True, key="crm_mot_ganho")
+                        else:
+                            st.info("Sem motivos registrados.")
+                    else:
+                        st.info("Nenhum ganho registrado.")
+            except Exception as _e:
+                st.error(f"Erro nos motivos: {_e}")
 
         st.markdown("---")
 
-        # ── Seção 2: Gráfico Diário (Leads · Conversões · Taxa) ──────────────
+        # ── Seção 3: Gráfico Diário ───────────────────────────────────────────
         st.markdown("#### Evolução Diária — Leads, Conversões e Taxa")
+        try:
+            if data_col:
+                df_crm["_DATA_DT"] = pd.to_datetime(df_crm[data_col], errors="coerce", dayfirst=True)
+                df_valid = df_crm[df_crm["_DATA_DT"].notna()].copy()
+                df_valid["_DIA"] = df_valid["_DATA_DT"].dt.date
 
-        df_daily = pd.DataFrame()
-        if data_col:
-            df_crm["_DATA_DT"] = pd.to_datetime(df_crm[data_col], errors="coerce", dayfirst=True)
-            df_valid = df_crm[df_crm["_DATA_DT"].notna()].copy()
-            df_valid["_DIA"] = df_valid["_DATA_DT"].dt.date
+                if len(df_valid) > 0:
+                    agg = df_valid.groupby("_DIA").agg(
+                        leads=("_DIA", "count"),
+                        ganhos=("_CLASSIF", lambda x: (x == "✅ Ganho").sum()),
+                    ).reset_index()
+                    agg["taxa"] = (agg["ganhos"] / agg["leads"] * 100).round(1)
 
-            if len(df_valid) > 0:
-                agg = df_valid.groupby("_DIA").agg(
-                    leads=("_DIA", "count"),
-                    ganhos=("_CLASSIF", lambda x: (x == "✅ Ganho").sum()),
-                ).reset_index()
-                agg["taxa"] = (agg["ganhos"] / agg["leads"] * 100).round(1)
-
-                fig_daily = go.Figure()
-                fig_daily.add_trace(go.Bar(
-                    x=agg["_DIA"], y=agg["leads"], name="Leads",
-                    marker_color="#0b1535", opacity=0.75,
-                ))
-                fig_daily.add_trace(go.Bar(
-                    x=agg["_DIA"], y=agg["ganhos"], name="Conversões",
-                    marker_color="#4caf50",
-                ))
-                fig_daily.add_trace(go.Scatter(
-                    x=agg["_DIA"], y=agg["taxa"], name="Taxa Conv. %",
-                    mode="lines+markers", yaxis="y2",
-                    line=dict(color="#e91e8c", width=2),
-                    marker=dict(size=6),
-                ))
-                fig_daily.update_layout(
-                    barmode="group",
-                    height=380,
-                    plot_bgcolor="white",
-                    legend=dict(orientation="h", y=1.08),
-                    margin=dict(l=0, r=60, t=30, b=20),
-                    yaxis=dict(title="Quantidade", gridcolor="#f0f0f0"),
-                    yaxis2=dict(title="Taxa %", overlaying="y", side="right",
-                                range=[0, 105], ticksuffix="%"),
-                )
-                st.plotly_chart(fig_daily, use_container_width=True)
+                    fig_daily = go.Figure()
+                    fig_daily.add_trace(go.Bar(x=agg["_DIA"], y=agg["leads"], name="Leads", marker_color="#0b1535", opacity=0.75))
+                    fig_daily.add_trace(go.Bar(x=agg["_DIA"], y=agg["ganhos"], name="Conversões", marker_color="#4caf50"))
+                    fig_daily.add_trace(go.Scatter(
+                        x=agg["_DIA"], y=agg["taxa"], name="Taxa Conv. %",
+                        mode="lines+markers", yaxis="y2",
+                        line=dict(color="#e91e8c", width=2), marker=dict(size=6),
+                    ))
+                    fig_daily.update_layout(
+                        barmode="group", height=380, plot_bgcolor="white",
+                        legend=dict(orientation="h", y=1.08),
+                        margin=dict(l=0, r=60, t=30, b=20),
+                        yaxis=dict(title="Quantidade", gridcolor="#f0f0f0"),
+                        yaxis2=dict(title="Taxa %", overlaying="y", side="right", range=[0, 105], ticksuffix="%"),
+                    )
+                    st.plotly_chart(fig_daily, use_container_width=True, key="crm_daily")
+                else:
+                    st.info("Nenhum registro com data válida para o gráfico diário.")
             else:
-                st.info("Nenhum registro com data válida para o gráfico diário.")
-        else:
-            st.info("Coluna de data não detectada na planilha CRM.")
+                st.info("Coluna de data não detectada na planilha CRM.")
+        except Exception as _e:
+            st.error(f"Erro no gráfico diário: {_e}")
 
         st.markdown("---")
 
-        # ── Seção 3: Por Funil ────────────────────────────────────────────────
+        # ── Seção 4: Por Funil ────────────────────────────────────────────────
         funil_col_eff = funil_col or status_col
         if funil_col_eff:
-            st.markdown(f"#### Por Funil  *(coluna: {funil_col_eff})*")
-            grp = df_crm.groupby(funil_col_eff).agg(
-                Leads=(funil_col_eff, "count"),
-                Ganhos=("_CLASSIF", lambda x: (x == "✅ Ganho").sum()),
-                Perdas=("_CLASSIF", lambda x: (x == "❌ Perda").sum()),
-                Em_andamento=("_CLASSIF", lambda x: (x == "🔄 Em andamento").sum()),
-            ).reset_index().rename(columns={funil_col_eff: "Funil"})
-            grp = grp[grp["Funil"].astype(str).str.strip().ne("")]
-            grp["Taxa Conv. %"] = (grp["Ganhos"] / (grp["Ganhos"] + grp["Perdas"]) * 100).fillna(0).round(1)
-            grp = grp.sort_values("Leads", ascending=False)
+            try:
+                st.markdown(f"#### Por Funil  *(coluna: {funil_col_eff})*")
+                grp = df_crm.groupby(funil_col_eff, dropna=True).agg(
+                    Leads=(funil_col_eff, "count"),
+                    Ganhos=("_CLASSIF", lambda x: (x == "✅ Ganho").sum()),
+                    Perdas=("_CLASSIF", lambda x: (x == "❌ Perda").sum()),
+                    Em_andamento=("_CLASSIF", lambda x: (x == "🔄 Em andamento").sum()),
+                ).reset_index().rename(columns={funil_col_eff: "Funil"})
+                grp = grp[grp["Funil"].astype(str).str.strip().ne("")]
+                grp["Taxa %"] = (grp["Ganhos"] / (grp["Ganhos"] + grp["Perdas"]) * 100).fillna(0).round(1)
+                grp = grp.sort_values("Leads", ascending=False).reset_index(drop=True)
 
-            col_tbl_f, col_chart_f = st.columns([1, 1])
-            with col_tbl_f:
                 grp_disp = grp.copy()
-                grp_disp["Taxa Conv. %"] = grp_disp["Taxa Conv. %"].apply(lambda x: f"{x:.1f}%")
+                grp_disp["Taxa %"] = grp_disp["Taxa %"].apply(lambda x: f"{x:.1f}%")
                 st.dataframe(grp_disp, use_container_width=True, hide_index=True)
-            with col_chart_f:
+
                 fig_f = go.Figure()
-                fig_f.add_trace(go.Bar(x=grp["Funil"], y=grp["Leads"],    name="Leads",      marker_color="#0b1535", opacity=0.75))
-                fig_f.add_trace(go.Bar(x=grp["Funil"], y=grp["Ganhos"],   name="Ganhos",     marker_color="#4caf50"))
-                fig_f.add_trace(go.Bar(x=grp["Funil"], y=grp["Perdas"],   name="Perdas",     marker_color="#f44336"))
+                fig_f.add_trace(go.Bar(x=grp["Funil"], y=grp["Leads"],  name="Leads",  marker_color="#0b1535", opacity=0.75))
+                fig_f.add_trace(go.Bar(x=grp["Funil"], y=grp["Ganhos"], name="Ganhos", marker_color="#4caf50"))
+                fig_f.add_trace(go.Bar(x=grp["Funil"], y=grp["Perdas"], name="Perdas", marker_color="#f44336"))
                 fig_f.add_trace(go.Scatter(
-                    x=grp["Funil"], y=grp["Taxa Conv. %"], name="Taxa %",
+                    x=grp["Funil"], y=grp["Taxa %"], name="Taxa %",
                     mode="lines+markers", yaxis="y2",
                     line=dict(color="#e91e8c", width=2), marker=dict(size=7),
                 ))
@@ -833,105 +834,90 @@ with tabs[9]:
                     legend=dict(orientation="h", y=1.08),
                     margin=dict(l=0, r=60, t=30, b=20),
                     yaxis=dict(title="Quantidade", gridcolor="#f0f0f0"),
-                    yaxis2=dict(title="Taxa %", overlaying="y", side="right",
-                                range=[0, 105], ticksuffix="%"),
+                    yaxis2=dict(title="Taxa %", overlaying="y", side="right", range=[0, 105], ticksuffix="%"),
                 )
-                st.plotly_chart(fig_f, use_container_width=True)
+                st.plotly_chart(fig_f, use_container_width=True, key="crm_por_funil")
+            except Exception as _e:
+                st.error(f"Erro na seção Por Funil: {_e}")
             st.markdown("---")
 
-        # ── Seção 4: Origem dos Leads ─────────────────────────────────────────
+        # ── Seção 5: Origem dos Leads ─────────────────────────────────────────
         if origem_col:
-            st.markdown("#### Origem dos Leads")
-            orig_counts = (
-                df_crm[origem_col].astype(str).str.strip()
-                .replace({'': pd.NA, 'nan': pd.NA}).dropna()
-                .value_counts().head(20)
-            )
-            if len(orig_counts) > 0:
-                df_orig = orig_counts.reset_index(); df_orig.columns = ['Origem', 'Leads']
-                col_o1, col_o2 = st.columns(2)
-                with col_o1:
-                    fig_o = px.bar(df_orig, x='Leads', y='Origem', orientation='h',
-                                   color_discrete_sequence=['#e91e8c'])
-                    fig_o.update_layout(height=max(200, len(df_orig) * 32),
-                                        plot_bgcolor='white', margin=dict(l=0, r=20, t=10, b=10))
-                    st.plotly_chart(fig_o, use_container_width=True)
-                with col_o2:
-                    # Taxa de conversão por origem
-                    conv_orig = df_crm[df_crm[origem_col].astype(str).str.strip().replace({'': pd.NA, 'nan': pd.NA}).notna()].groupby(origem_col).agg(
+            try:
+                st.markdown("#### Origem dos Leads")
+                orig_counts = (
+                    df_crm[origem_col].astype(str).str.strip()
+                    .replace({'': pd.NA, 'nan': pd.NA}).dropna()
+                    .value_counts().head(20)
+                )
+                if len(orig_counts) > 0:
+                    df_orig = pd.DataFrame({"Origem": orig_counts.index.tolist(), "Leads": orig_counts.values.tolist()})
+                    fig_o = px.bar(df_orig, x='Leads', y='Origem', orientation='h', color_discrete_sequence=['#e91e8c'])
+                    fig_o.update_layout(height=max(200, len(df_orig)*32), plot_bgcolor='white', margin=dict(l=0,r=20,t=10,b=10))
+                    st.plotly_chart(fig_o, use_container_width=True, key="crm_origem")
+
+                    conv_orig = df_crm[df_crm[origem_col].astype(str).str.strip().replace({'': pd.NA, 'nan': pd.NA}).notna()].groupby(origem_col, dropna=True).agg(
                         Leads=(origem_col, "count"),
                         Ganhos=("_CLASSIF", lambda x: (x == "✅ Ganho").sum()),
-                    ).reset_index()
-                    conv_orig["Taxa %"] = (conv_orig["Ganhos"] / conv_orig["Leads"] * 100).round(1)
-                    conv_orig = conv_orig.rename(columns={origem_col: "Origem"}).sort_values("Leads", ascending=False)
-                    conv_orig_disp = conv_orig.copy()
-                    conv_orig_disp["Taxa %"] = conv_orig_disp["Taxa %"].apply(lambda x: f"{x:.1f}%")
-                    st.dataframe(conv_orig_disp, use_container_width=True, hide_index=True)
+                    ).reset_index().rename(columns={origem_col: "Origem"}).sort_values("Leads", ascending=False)
+                    conv_orig["Taxa %"] = (conv_orig["Ganhos"] / conv_orig["Leads"] * 100).round(1).apply(lambda x: f"{x:.1f}%")
+                    st.dataframe(conv_orig, use_container_width=True, hide_index=True)
                 st.markdown("---")
+            except Exception as _e:
+                st.error(f"Erro na seção Origem: {_e}")
 
-        # ── Seção 5: Editais de Interesse ─────────────────────────────────────
+        # ── Seção 6: Editais de Interesse ─────────────────────────────────────
         if edital_col:
-            st.markdown("#### Editais de Interesse")
-            ed_counts = (
-                df_crm[edital_col].astype(str).str.strip()
-                .replace({'': pd.NA, 'nan': pd.NA}).dropna()
-                .value_counts().head(20)
-            )
-            if len(ed_counts) > 0:
-                df_ed = ed_counts.reset_index(); df_ed.columns = ['Edital', 'Leads']
-                fig_ed = px.bar(df_ed, x='Leads', y='Edital', orientation='h',
-                                color_discrete_sequence=['#0b1535'])
-                fig_ed.update_layout(height=max(200, len(df_ed) * 34),
-                                     plot_bgcolor='white', margin=dict(l=0, r=20, t=10, b=10))
-                st.plotly_chart(fig_ed, use_container_width=True)
+            try:
+                st.markdown("#### Editais de Interesse")
+                ed_counts = (
+                    df_crm[edital_col].astype(str).str.strip()
+                    .replace({'': pd.NA, 'nan': pd.NA}).dropna()
+                    .value_counts().head(20)
+                )
+                if len(ed_counts) > 0:
+                    df_ed = pd.DataFrame({"Edital": ed_counts.index.tolist(), "Leads": ed_counts.values.tolist()})
+                    fig_ed = px.bar(df_ed, x='Leads', y='Edital', orientation='h', color_discrete_sequence=['#0b1535'])
+                    fig_ed.update_layout(height=max(200, len(df_ed)*34), plot_bgcolor='white', margin=dict(l=0,r=20,t=10,b=10))
+                    st.plotly_chart(fig_ed, use_container_width=True, key="crm_editais")
 
-                # Conversão por edital
-                conv_ed = df_crm[df_crm[edital_col].astype(str).str.strip().replace({'': pd.NA, 'nan': pd.NA}).notna()].groupby(edital_col).agg(
-                    Leads=(edital_col, "count"),
-                    Ganhos=("_CLASSIF", lambda x: (x == "✅ Ganho").sum()),
-                    Perdas=("_CLASSIF", lambda x: (x == "❌ Perda").sum()),
-                ).reset_index()
-                conv_ed["Taxa %"] = (conv_ed["Ganhos"] / conv_ed["Leads"] * 100).round(1)
-                conv_ed = conv_ed.rename(columns={edital_col: "Edital"}).sort_values("Leads", ascending=False)
-                conv_ed_disp = conv_ed.copy()
-                conv_ed_disp["Taxa %"] = conv_ed_disp["Taxa %"].apply(lambda x: f"{x:.1f}%")
-                st.dataframe(conv_ed_disp, use_container_width=True, hide_index=True)
+                    conv_ed = df_crm[df_crm[edital_col].astype(str).str.strip().replace({'': pd.NA, 'nan': pd.NA}).notna()].groupby(edital_col, dropna=True).agg(
+                        Leads=(edital_col, "count"),
+                        Ganhos=("_CLASSIF", lambda x: (x == "✅ Ganho").sum()),
+                        Perdas=("_CLASSIF", lambda x: (x == "❌ Perda").sum()),
+                    ).reset_index().rename(columns={edital_col: "Edital"}).sort_values("Leads", ascending=False)
+                    conv_ed["Taxa %"] = (conv_ed["Ganhos"] / conv_ed["Leads"] * 100).round(1).apply(lambda x: f"{x:.1f}%")
+                    st.dataframe(conv_ed, use_container_width=True, hide_index=True)
                 st.markdown("---")
+            except Exception as _e:
+                st.error(f"Erro na seção Editais: {_e}")
 
         # ── Pipeline por Status ───────────────────────────────────────────────
-        status_counts = pd.Series(dtype=int)
         if status_col:
-            sv = df_crm[status_col].astype(str).str.strip()
-            status_counts = sv[sv.ne("") & sv.ne("STATUS")].value_counts()
-            if len(status_counts) > 0:
-                st.markdown("#### Pipeline por Status")
-                df_sc = status_counts.reset_index(); df_sc.columns = ['Status', 'Qtd']
-                fig_st = px.bar(df_sc, x='Qtd', y='Status', orientation='h',
-                                color_discrete_sequence=['#e91e8c'])
-                fig_st.update_layout(height=max(200, len(df_sc) * 35),
-                                     plot_bgcolor='white', margin=dict(l=0, r=20, t=10, b=10))
-                st.plotly_chart(fig_st, use_container_width=True)
-                st.markdown("---")
+            try:
+                sv = df_crm[status_col].astype(str).str.strip()
+                status_counts = sv[sv.ne("") & sv.ne("STATUS")].value_counts()
+                if len(status_counts) > 0:
+                    st.markdown("#### Pipeline por Status")
+                    df_sc = pd.DataFrame({"Status": status_counts.index.tolist(), "Qtd": status_counts.values.tolist()})
+                    fig_st = px.bar(df_sc, x='Qtd', y='Status', orientation='h', color_discrete_sequence=['#e91e8c'])
+                    fig_st.update_layout(height=max(200, len(df_sc)*35), plot_bgcolor='white', margin=dict(l=0,r=20,t=10,b=10))
+                    st.plotly_chart(fig_st, use_container_width=True, key="crm_status")
+                    st.markdown("---")
+            except Exception as _e:
+                st.error(f"Erro no pipeline por status: {_e}")
 
         # ── Filtros + Tabela ──────────────────────────────────────────────────
-        cf1, cf2, cf3, cf4 = st.columns(4)
-        with cf1:
-            filtro_classif = st.selectbox("Resultado",
-                ["Todos", "✅ Ganho", "❌ Perda", "🔄 Em andamento"], key='crm_classif')
-        with cf2:
-            if funil_col:
-                funis_uniq = sorted(df_crm[funil_col].astype(str).str.strip().replace({'': pd.NA, 'nan': pd.NA}).dropna().unique())
-                filtro_funil_crm = st.selectbox("Funil", ['Todos'] + funis_uniq, key='crm_funil')
-            else:
-                filtro_funil_crm = 'Todos'
-        with cf3:
-            if edital_col:
-                editais_uniq = sorted(df_crm[edital_col].astype(str).str.strip().replace({'': pd.NA, 'nan': pd.NA}).dropna().unique())
-                filtro_edital = st.selectbox("Edital", ['Todos'] + editais_uniq, key='crm_edital')
-            else:
-                filtro_edital = 'Todos'
-        with cf4:
-            filtro_busca = st.text_input("Buscar (nome, telefone...)", key='crm_busca')
+        filtro_classif = st.selectbox("Resultado",
+            ["Todos", "✅ Ganho", "❌ Perda", "🔄 Em andamento"], key='crm_classif')
+
+        funis_uniq = sorted(df_crm[funil_col].astype(str).str.strip().replace({'': pd.NA, 'nan': pd.NA}).dropna().unique().tolist()) if funil_col else []
+        filtro_funil_crm = st.selectbox("Funil", ['Todos'] + funis_uniq, key='crm_funil') if funis_uniq else 'Todos'
+
+        editais_uniq = sorted(df_crm[edital_col].astype(str).str.strip().replace({'': pd.NA, 'nan': pd.NA}).dropna().unique().tolist()) if edital_col else []
+        filtro_edital = st.selectbox("Edital", ['Todos'] + editais_uniq, key='crm_edital') if editais_uniq else 'Todos'
+
+        filtro_busca = st.text_input("Buscar (nome, telefone...)", key='crm_busca')
 
         df_show_crm = df_crm.copy()
         if filtro_classif != "Todos":
