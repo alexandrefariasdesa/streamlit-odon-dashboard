@@ -815,10 +815,9 @@ with tabs[9]:
 
             col_tbl_f, col_chart_f = st.columns([1, 1])
             with col_tbl_f:
-                st.dataframe(
-                    grp.style.format({"Taxa Conv. %": "{:.1f}%"}),
-                    use_container_width=True, hide_index=True,
-                )
+                grp_disp = grp.copy()
+                grp_disp["Taxa Conv. %"] = grp_disp["Taxa Conv. %"].apply(lambda x: f"{x:.1f}%")
+                st.dataframe(grp_disp, use_container_width=True, hide_index=True)
             with col_chart_f:
                 fig_f = go.Figure()
                 fig_f.add_trace(go.Bar(x=grp["Funil"], y=grp["Leads"],    name="Leads",      marker_color="#0b1535", opacity=0.75))
@@ -865,8 +864,9 @@ with tabs[9]:
                     ).reset_index()
                     conv_orig["Taxa %"] = (conv_orig["Ganhos"] / conv_orig["Leads"] * 100).round(1)
                     conv_orig = conv_orig.rename(columns={origem_col: "Origem"}).sort_values("Leads", ascending=False)
-                    st.dataframe(conv_orig.style.format({"Taxa %": "{:.1f}%"}),
-                                 use_container_width=True, hide_index=True)
+                    conv_orig_disp = conv_orig.copy()
+                    conv_orig_disp["Taxa %"] = conv_orig_disp["Taxa %"].apply(lambda x: f"{x:.1f}%")
+                    st.dataframe(conv_orig_disp, use_container_width=True, hide_index=True)
                 st.markdown("---")
 
         # ── Seção 5: Editais de Interesse ─────────────────────────────────────
@@ -893,8 +893,9 @@ with tabs[9]:
                 ).reset_index()
                 conv_ed["Taxa %"] = (conv_ed["Ganhos"] / conv_ed["Leads"] * 100).round(1)
                 conv_ed = conv_ed.rename(columns={edital_col: "Edital"}).sort_values("Leads", ascending=False)
-                st.dataframe(conv_ed.style.format({"Taxa %": "{:.1f}%"}),
-                             use_container_width=True, hide_index=True)
+                conv_ed_disp = conv_ed.copy()
+                conv_ed_disp["Taxa %"] = conv_ed_disp["Taxa %"].apply(lambda x: f"{x:.1f}%")
+                st.dataframe(conv_ed_disp, use_container_width=True, hide_index=True)
                 st.markdown("---")
 
         # ── Pipeline por Status ───────────────────────────────────────────────
